@@ -1,3 +1,5 @@
+# 这是一个化学实验的演示程序，不是特别严谨，但是能用。
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
