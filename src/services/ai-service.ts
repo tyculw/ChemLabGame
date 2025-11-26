@@ -1,7 +1,7 @@
 import type { Substance, Operation, AIReactionResult } from '../types';
 import { findReactionInCache, saveReactionToCache } from './json-data-service';
 
-const API_KEY = import.meta.env.VITE_AI_API_KEY || 'lm-sk-gvirepishumttbsbpvhtozfzufiwudyczhdspjfjtkvbftje';
+const API_KEY = import.meta.env.VITE_AI_API_KEY || '';
 const MODEL = import.meta.env.VITE_AI_MODEL || 'Qwen/Qwen3-Next-80B-A3B-Instruct';
 const API_URL = import.meta.env.VITE_AI_API_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 
