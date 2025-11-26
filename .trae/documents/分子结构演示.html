@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多尺度微观物理交互模型</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        
+        /* UI 容器 */
+        #ui-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        /* 顶部信息栏 */
+        #header {
+            background: rgba(0, 0, 0, 0.6); padding: 15px; text-align: center; pointer-events: auto;
+            backdrop-filter: blur(5px); border-bottom: 1px solid #333;
+        }
+        h1 { margin: 0; font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase; color: #4db8ff; }
+        p { margin: 5px 0 0; font-size: 0.9rem; color: #ccc; }
+
+        /* 分子选择器 (仅在分子层级显示) */
+        #molecule-selector-container {
+            margin-top: 10px; display: none;
+        }
+        select {
+            background: #222; color: white; border: 1px solid #555; padding: 5px 10px; font-size: 1rem; border-radius: 4px; cursor: pointer;
+        }
+
+        /* 底部控制区 */
+        #controls {
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            padding: 20px 40px 40px; pointer-events: auto; display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* 层级轴 (Slider) */
+        .slider-container {
+            width: 80%; max-width: 600px; position: relative; margin-top: 20px;
+        }
+        input[type=range] {
+            width: 100%; -webkit-appearance: none; background: transparent; cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px; background: #333; border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%;
+            background: #4db8ff; border: 2px solid white; margin-top: -9px; box-shadow: 0 0 10px #4db8ff;
+        }
+        
+        /* 轴标签 */
+        .slider-labels {
+            display: flex; justify-content: space-between; margin-top: 10px; color: #888; font-size: 0.8rem;
+        }
+        .slider-labels span { position: relative; cursor: pointer; transition: color 0.3s; }
+        .slider-labels span.active { color: #fff; font-weight: bold; text-shadow: 0 0 8px rgba(255,255,255,0.5); }
+        
+        /* 点击提示 */
+        #click-hint {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 20px; border: 1px solid #4db8ff;
+            pointer-events: none; opacity: 0; transition: opacity 0.5s;
+        }
+
+        /* 颜色图例 */
+        #legend {
+            position: absolute; top: 80px; right: 20px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; font-size: 0.8rem; text-align: right;
+        }
+        .legend-item { margin-bottom: 5px; }
+        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+<!-- Three.js 容器 -->
+<div id="canvas-container"></div>
+
+<!-- UI 界面 -->
+<div id="ui-container">
+    <div id="header">
+        <h1 id="scene-title">微观物理模型</h1>
+        <p id="scene-desc">正在加载...</p>
+        
+        <div id="molecule-selector-container">
+            <label for="molecule-select">选择物质：</label>
+            <select id="molecule-select">
+                <option value="H2">氢气 (H₂)</option>
+                <option value="O2">氧气 (O₂)</option>
+                <option value="H2O">水 (H₂O)</option>
+                <option value="NaCl">氯化钠 (NaCl)</option>
+                <option value="CO2">二氧化碳 (CO₂)</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="legend"></div>
+    <div id="click-hint">点击物体放大</div>
+
+    <div id="controls">
+        <div class="slider-container">
+            <input type="range" id="level-slider" min="0" max="3" step="1" value="0">
+            <div class="slider-labels">
+                <span onclick="changeLevel(0)" id="label-0">分子层级<br>(Molecule)</span>
+                <span onclick="changeLevel(1)" id="label-1">原子层级<br>(Atom)</span>
+                <span onclick="changeLevel(2)" id="label-2">原子核层级<br>(Nucleus)</span>
+                <span onclick="changeLevel(3)" id="label-3">基本粒子<br>(Quarks)</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// --- 配置常量 ---
+const COLORS = {
+    proton: 0xff3333,
+    neutron: 0x3333ff,
+    electron: 0x00ffff,
+    quarkU: 0xffd700, // Up quark (Gold)
+    quarkD: 0x00ff00, // Down quark (Green)
+    bond: 0xaaaaaa,
+    atomColors: {
+        'H': 0xffffff, 'O': 0xff0000, 'Na': 0xab5cf2, 'Cl': 0x00ff00, 'C': 0x555555
+    }
+};
+
+// 元素数据：原子序数（质子数），中子数（估算）
+const ELEMENTS = {
+    'H': { p: 1, n: 0, radius: 1.0 },
+    'O': { p: 8, n: 8, radius: 1.5 },
+    'C': { p: 6, n: 6, radius: 1.4 },
+    'Na': { p: 11, n: 12, radius: 1.8 },
+    'Cl': { p: 17, n: 18, radius: 1.7 }
+};
+
+// 分子结构定义
+const MOLECULES = {
+    'H2': {
+        atoms: [ { e: 'H', pos: [-0.8, 0, 0] }, { e: 'H', pos: [0.8, 0, 0] } ],
+        bonds: [ [0, 1] ]
+    },
+    'O2': {
+        atoms: [ { e: 'O', pos: [-1.2, 0, 0] }, { e: 'O', pos: [1.2, 0, 0] } ],
+        bonds: [ [0, 1] ] // 双键视觉上简化为一个粗键
+    },
+    'H2O': {
+        atoms: [
+            { e: 'O', pos: [0, 0, 0] },
+            { e: 'H', pos: [1.5, -1.0, 0] }, // 约104.5度
+            { e: 'H', pos: [-1.5, -1.0, 0] }
+        ],
+        bonds: [ [0, 1], [0, 2] ]
+    },
+    'NaCl': {
+        atoms: [ { e: 'Na', pos: [-1.4, 0, 0] }, { e: 'Cl', pos: [1.4, 0, 0] } ],
+        bonds: [ [0, 1] ] // 离子键
+    },
+    'CO2': {
+        atoms: [
+            { e: 'C', pos: [0, 0, 0] },
+            { e: 'O', pos: [-2.2, 0, 0] },
+            { e: 'O', pos: [2.2, 0, 0] }
+        ],
+        bonds: [ [0, 1], [0, 2] ]
+    }
+};
+
+// --- 全局状态 ---
+let scene, camera, renderer, controls, raycaster, mouse;
+let mainGroup; // 当前层级的所有物体放这里
+let currentLevel = 0; // 0-3
+let currentMoleculeKey = 'H2O';
+let selectedAtomElement = 'O'; // 默认选中的原子类型
+let selectedNucleonType = 'proton'; // 默认选中的核子类型
+
+// 动画对象引用，用于在animate中更新
+let activeAnimators = []; 
+
+// 辅助函数：确保数值在范围内，防止NaN
+function clamp(num, min, max) {
+    return Math.min(Math.max(num, min), max);
+}
+
+init();
+animate();
+
+function init() {
+    // 场景
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050505, 0.02);
+
+    // 相机
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 15;
+
+    // 渲染器
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    // 控制
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 2;
+    controls.maxDistance = 50;
+
+    // 灯光
+    const ambientLight = new THREE.AmbientLight(0x404040, 2); 
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+    dirLight.position.set(10, 20, 10);
+    scene.add(dirLight);
+    const blueLight = new THREE.PointLight(0x0088ff, 2, 20);
+    blueLight.position.set(-5, 0, 5);
+    scene.add(blueLight);
+
+    // 交互
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+    window.addEventListener('click', onMouseClick);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('resize', onWindowResize);
+
+    // UI 绑定
+    document.getElementById('level-slider').addEventListener('input', (e) => {
+        loadLevel(parseInt(e.target.value));
+    });
+    document.getElementById('molecule-select').addEventListener('change', (e) => {
+        currentMoleculeKey = e.target.value;
+        // 如果在其他层级切换了分子，重置回分子层
+        if (currentLevel !== 0) {
+            document.getElementById('level-slider').value = 0;
+            loadLevel(0);
+        } else {
+            loadLevel(0);
+        }
+    });
+
+    // 暴露函数给全局（用于HTML中的onclick）
+    window.changeLevel = function(lvl) {
+        document.getElementById('level-slider').value = lvl;
+        loadLevel(lvl);
+    };
+
+    // 初始加载
+    loadLevel(0);
+}
+
+// --- 核心逻辑：层级加载器 ---
+function loadLevel(level) {
+    currentLevel = level;
+    
+    // 清理旧场景
+    if (mainGroup) scene.remove(mainGroup);
+    activeAnimators = []; // 清空动画列表
+    mainGroup = new THREE.Group();
+    scene.add(mainGroup);
+
+    // 更新UI
+    updateUIState();
+
+    // 构建新场景
+    switch(level) {
+        case 0: buildMoleculeLevel(); break;
+        case 1: buildAtomLevel(); break;
+        case 2: buildNucleusLevel(); break;
+        case 3: buildQuarkLevel(); break;
+    }
+
+    // 简单的入场动画：缩放
+    mainGroup.scale.set(0.1, 0.1, 0.1);
+    const targetScale = 1;
+    let s = 0.1;
+    const grow = () => {
+        s += (targetScale - s) * 0.1;
+        mainGroup.scale.set(s,s,s);
+        if (Math.abs(targetScale - s) > 0.01) requestAnimationFrame(grow);
+    };
+    grow();
+}
+
+// ================= LEVEL 0: 分子 =================
+function buildMoleculeLevel() {
+    const data = MOLECULES[currentMoleculeKey];
+    
+    // 1. 创建原子
+    data.atoms.forEach((atomData, index) => {
+        const elInfo = ELEMENTS[atomData.e];
+        const color = COLORS.atomColors[atomData.e] || 0xcccccc;
+        
+        // 球体
+        const geo = new THREE.SphereGeometry(elInfo.radius * 0.8, 32, 32);
+        const mat = new THREE.MeshPhysicalMaterial({
+            color: color, metalness: 0.2, roughness: 0.3,
+            clearcoat: 1.0, clearcoatRoughness: 0.1
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(...atomData.pos);
+        
+        // 绑定数据用于点击交互
+        mesh.userData = { level: 0, type: 'atom', element: atomData.e };
+        mesh.name = "Interactable";
+        
+        // 增加文字标签 (HTML Overlay太复杂，这里简化不加，或者用颜色图例)
+        
+        mainGroup.add(mesh);
+    });
+
+    // 2. 创建化学键
+    data.bonds.forEach(pair => {
+        const p1 = new THREE.Vector3(...data.atoms[pair[0]].pos);
+        const p2 = new THREE.Vector3(...data.atoms[pair[1]].pos);
+        
+        const dist = p1.distanceTo(p2);
+        const cylinderGeo = new THREE.CylinderGeometry(0.3, 0.3, dist, 16);
+        const cylinderMat = new THREE.MeshStandardMaterial({ color: COLORS.bond });
+        const bond = new THREE.Mesh(cylinderGeo, cylinderMat);
+        
+        // 调整位置和旋转
+        bond.position.copy(p1).lerp(p2, 0.5);
+        bond.lookAt(p2);
+        bond.rotateX(Math.PI / 2);
+        
+        mainGroup.add(bond);
+    });
+
+    // 自动旋转动画
+    activeAnimators.push(() => {
+        mainGroup.rotation.y += 0.005;
+    });
+}
+
+// ================= LEVEL 1: 原子 (电子云分层显示) =================
+function buildAtomLevel() {
+    // 根据选中的元素 (selectedAtomElement) 构建
+    const elData = ELEMENTS[selectedAtomElement];
+    const pCount = elData.p;
+
+    // 1. 原子核 (远景，发光小球)
+    const nucleusGeo = new THREE.SphereGeometry(0.5, 16, 16);
+    const nucleusMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const nucleus = new THREE.Mesh(nucleusGeo, nucleusMat);
+    nucleus.userData = { level: 1, type: 'nucleus' };
+    nucleus.name = "Interactable";
+    
+    // 原子核光晕
+    const glowGeo = new THREE.SphereGeometry(0.7, 16, 16);
+    const glowMat = new THREE.MeshBasicMaterial({ 
+        color: 0xffaa00, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending 
+    });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    nucleus.add(glow);
+    mainGroup.add(nucleus);
+
+    // 2. 电子云 (分层粒子系统)
+    // 计算电子层数 (简化逻辑：根据周期表)
+    let numShells = 1;
+    if (pCount > 2) numShells = 2;  // Li(3) - Ne(10)
+    if (pCount > 10) numShells = 3; // Na(11) - Ar(18)
+    if (pCount > 18) numShells = 4; // K(19)+
+    
+    const particleCount = 2500 * numShells; // 粒子总数
+    const posArray = new Float32Array(particleCount * 3);
+    const colorArray = new Float32Array(particleCount * 3);
+
+    const baseColor = new THREE.Color(COLORS.electron);
+
+    for(let i = 0; i < particleCount; i++) {
+        // 随机选择一个电子层进行填充，以模拟该层电子出现的概率
+        // 为了视觉效果，均匀分布粒子到各个层，而不是按电子数比例
+        const shellIndex = Math.floor(Math.random() * numShells); 
+        
+        // 定义每一层的基准半径 (r=3.0, 5.5, 8.0...)
+        const baseRadius = 3.0 + (shellIndex * 2.5);
+        
+        // 在基准半径周围通过高斯分布（正态分布）生成厚度
+        // 越外层越弥散 (spread 增大)
+        const spread = 0.6 + (shellIndex * 0.2);
+        
+        // Box-Muller 变换生成近似正态分布随机数 (-2 到 2 之间较多)
+        const normalRand = (Math.random() + Math.random() + Math.random() + Math.random() - 2.0);
+        let r = baseRadius + normalRand * spread;
+        if (r < 1.0) r = 1.0; // 防止太靠近原子核
+
+        const theta = Math.random() * Math.PI * 2;
+        const phiInput = 2 * Math.random() - 1;
+        const phi = Math.acos(clamp(phiInput, -1, 1));
+
+        const x = r * Math.sin(phi) * Math.cos(theta);
+        const y = r * Math.sin(phi) * Math.sin(theta);
+        const z = r * Math.cos(phi);
+
+        // 安全检查
+        if (isNaN(x) || isNaN(y) || isNaN(z)) {
+            posArray[i*3] = 0; posArray[i*3+1] = 0; posArray[i*3+2] = 0;
+        } else {
+            posArray[i*3] = x; posArray[i*3+1] = y; posArray[i*3+2] = z;
+        }
+
+        // 颜色变化：内层更亮/白，外层更蓝/暗，增加层次感
+        const intensity = 1.0 - (shellIndex * 0.2); // 1.0, 0.8, 0.6
+        const layerColor = baseColor.clone().multiplyScalar(intensity);
+        
+        // 稍微混合一点白色到内层
+        if (shellIndex === 0) layerColor.lerp(new THREE.Color(1,1,1), 0.3);
+
+        colorArray[i*3] = layerColor.r;
+        colorArray[i*3+1] = layerColor.g;
+        colorArray[i*3+2] = layerColor.b;
+    }
+
+    const particlesGeo = new THREE.BufferGeometry();
+    particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    particlesGeo.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+
+    const particlesMat = new THREE.PointsMaterial({
+        size: 0.08,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    const cloud = new THREE.Points(particlesGeo, particlesMat);
+    mainGroup.add(cloud);
+
+    // 动画
+    activeAnimators.push(() => {
+        // 不同层级可以有不同的旋转速度，增强分层感
+        cloud.rotation.y -= 0.001;
+        
+        // 脉冲效果
+        const scale = 1 + Math.sin(Date.now() * 0.002) * 0.05;
+        nucleus.scale.setScalar(scale);
+    });
+}
+
+// ================= LEVEL 2: 原子核 =================
+function buildNucleusLevel() {
+    const elData = ELEMENTS[selectedAtomElement];
+    const pCount = elData.p;
+    const nCount = elData.n;
+    const total = pCount + nCount;
+    
+    // 紧密堆积模拟
+    const spheres = [];
+    const sphereRadius = 1.0;
+    
+    // 简单的斐波那契球体分布算法，让质子中子混合成球形
+    const phi = Math.PI * (3 - Math.sqrt(5)); // 黄金角
+
+    for (let i = 0; i < total; i++) {
+        const pos = new THREE.Vector3(0, 0, 0);
+
+        // 如果只有一个粒子，直接放在中心，避免除零错误
+        if (total > 1) {
+            const y = 1 - (i / (total - 1)) * 2;
+            // 安全计算 sqrt，防止 NaN
+            const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
+            const theta = phi * i;
+
+            const x = Math.cos(theta) * radiusAtY;
+            const z = Math.sin(theta) * radiusAtY;
+
+            // 缩放位置使它们紧挨着
+            pos.set(x, y, z).multiplyScalar(Math.pow(total, 1/3) * 1.3);
+        }
+
+        // 决定是质子还是中子 (尽量均匀混合)
+        let isProton;
+        if (total === 1 && pCount === 1) {
+            isProton = true; // 氢原子的情况
+        } else if (pCount > 0 && nCount > 0) {
+            // 简单分配：剩余的质子多就放质子，否则放中子，这里用随机简化
+            isProton = Math.random() > 0.5; 
+        } else if (pCount > 0) isProton = true;
+        else isProton = false;
+
+        const geo = new THREE.SphereGeometry(sphereRadius, 32, 32);
+        const mat = new THREE.MeshPhysicalMaterial({
+            color: isProton ? COLORS.proton : COLORS.neutron,
+            roughness: 0.4, metalness: 0.1,
+            clearcoat: 0.5
+        });
+        
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(pos);
+        mesh.userData = { level: 2, type: isProton ? 'proton' : 'neutron' };
+        mesh.name = "Interactable";
+        
+        mainGroup.add(mesh);
+        spheres.push({ mesh: mesh, basePos: pos.clone(), phase: Math.random() * 100 });
+    }
+
+    // 强相互作用动画：轻微“呼吸”震动
+    activeAnimators.push(() => {
+        const time = Date.now() * 0.002;
+        mainGroup.rotation.y += 0.002;
+        spheres.forEach(obj => {
+            obj.mesh.position.copy(obj.basePos).addScalar(Math.sin(time + obj.phase) * 0.05);
+        });
+    });
+}
+
+// ================= LEVEL 3: 夸克 =================
+function buildQuarkLevel() {
+    // 质子: uud, 中子: udd
+    const types = selectedNucleonType === 'proton' 
+        ? ['u', 'u', 'd'] 
+        : ['u', 'd', 'd'];
+    
+    const quarkGroup = new THREE.Group();
+    const positions = [
+        new THREE.Vector3(0, 1.5, 0),
+        new THREE.Vector3(-1.3, -1, 0),
+        new THREE.Vector3(1.3, -1, 0)
+    ];
+
+    const quarkMeshes = [];
+
+    // 1. 创建夸克
+    types.forEach((type, i) => {
+        const color = type === 'u' ? COLORS.quarkU : COLORS.quarkD;
+        const geo = new THREE.SphereGeometry(0.6, 32, 32);
+        const mat = new THREE.MeshStandardMaterial({ 
+            color: color, emissive: color, emissiveIntensity: 0.8 
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(positions[i]);
+        quarkGroup.add(mesh);
+        quarkMeshes.push({ mesh: mesh, base: positions[i], phase: i * 2 });
+    });
+
+    // 2. 胶子 (连接线)
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    const lineGeo = new THREE.BufferGeometry();
+    const lineObj = new THREE.Line(lineGeo, lineMat); // 使用LineLoop或Line
+    quarkGroup.add(lineObj);
+
+    // 3. 禁闭场 (外部半透明球)
+    const shellGeo = new THREE.SphereGeometry(3.5, 32, 32);
+    const shellMat = new THREE.MeshBasicMaterial({
+        color: selectedNucleonType === 'proton' ? COLORS.proton : COLORS.neutron,
+        wireframe: true, transparent: true, opacity: 0.1
+    });
+    const shell = new THREE.Mesh(shellGeo, shellMat);
+    quarkGroup.add(shell);
+
+    mainGroup.add(quarkGroup);
+
+    // 高频振动动画
+    activeAnimators.push(() => {
+        const time = Date.now() * 0.01;
+        
+        // 更新夸克位置
+        const currentPoints = [];
+        quarkMeshes.forEach(q => {
+            q.mesh.position.x = q.base.x + Math.sin(time * 3 + q.phase) * 0.3;
+            q.mesh.position.y = q.base.y + Math.cos(time * 2 + q.phase) * 0.3;
+            q.mesh.position.z = q.base.z + Math.sin(time * 4 + q.phase) * 0.3;
+            currentPoints.push(q.mesh.position.x, q.mesh.position.y, q.mesh.position.z);
+        });
+
+        // 闭合三角形 (安全检查)
+        if (currentPoints.length >= 3) {
+            currentPoints.push(currentPoints[0], currentPoints[1], currentPoints[2]); 
+            lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(currentPoints, 3));
+        }
+        
+        quarkGroup.rotation.z += 0.01;
+        shell.rotation.y -= 0.005;
+    });
+}
+
+// --- 交互逻辑 ---
+
+function updateUIState() {
+    // 1. 高亮Slider标签
+    document.querySelectorAll('.slider-labels span').forEach((el, idx) => {
+        el.classList.toggle('active', idx === currentLevel);
+    });
+
+    // 2. 更新标题文本
+    const titleEl = document.getElementById('scene-title');
+    const descEl = document.getElementById('scene-desc');
+    const molSelect = document.getElementById('molecule-selector-container');
+    const legend = document.getElementById('legend');
+
+    molSelect.style.display = 'none';
+    legend.innerHTML = '';
+
+    if (currentLevel === 0) {
+        titleEl.innerText = `分子层级: ${currentMoleculeKey}`;
+        descEl.innerText = "化学键将原子结合在一起。点击原子可进入内部。";
+        molSelect.style.display = 'block';
+        legend.innerHTML = `
+            <div class="legend-item"><span class="dot" style="background:#fff"></span>H 氢</div>
+            <div class="legend-item"><span class="dot" style="background:#f00"></span>O 氧</div>
+            <div class="legend-item"><span class="dot" style="background:#ab5cf2"></span>Na 钠</div>
+            <div class="legend-item"><span class="dot" style="background:#0f0"></span>Cl 氯</div>
+        `;
+    } 
+    else if (currentLevel === 1) {
+        const name = Object.keys(ELEMENTS).find(k => k === selectedAtomElement) || "";
+        titleEl.innerText = `原子层级: ${name} 元素`;
+        descEl.innerText = "电子以概率云的形式存在。中心发光点是原子核。";
+        legend.innerHTML = `
+            <div class="legend-item"><span class="dot" style="background:#0ff"></span>电子云</div>
+            <div class="legend-item"><span class="dot" style="background:#fff"></span>原子核</div>
+        `;
+    }
+    else if (currentLevel === 2) {
+        titleEl.innerText = "原子核层级";
+        descEl.innerText = "质子和中子被强核力紧紧束缚。";
+        legend.innerHTML = `
+            <div class="legend-item"><span class="dot" style="background:#f33"></span>质子 (+)</div>
+            <div class="legend-item"><span class="dot" style="background:#33f"></span>中子 (0)</div>
+        `;
+    }
+    else if (currentLevel === 3) {
+        titleEl.innerText = `基本粒子: ${selectedNucleonType === 'proton' ? '质子' : '中子'}内部`;
+        descEl.innerText = "夸克被胶子禁闭。无法单独观测到夸克。";
+        legend.innerHTML = `
+            <div class="legend-item"><span class="dot" style="background:#ffd700"></span>上夸克 (u)</div>
+            <div class="legend-item"><span class="dot" style="background:#0f0"></span>下夸克 (d)</div>
+        `;
+    }
+}
+
+function onMouseMove(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(mainGroup.children, true);
+    
+    const hint = document.getElementById('click-hint');
+    if (intersects.length > 0 && intersects[0].object.name === "Interactable") {
+        document.body.style.cursor = 'pointer';
+        hint.style.opacity = 1;
+    } else {
+        document.body.style.cursor = 'default';
+        hint.style.opacity = 0;
+    }
+}
+
+function onMouseClick(event) {
+    // 防止点击UI触发
+    if (event.target.closest('#ui-container') && !event.target.closest('#canvas-container')) return;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(mainGroup.children, true);
+
+    if (intersects.length > 0) {
+        const obj = intersects[0].object;
+        if (obj.userData.level !== undefined) {
+            // 向下钻取逻辑
+            if (currentLevel === 0 && obj.userData.type === 'atom') {
+                selectedAtomElement = obj.userData.element;
+                updateSliderAndLoad(1);
+            }
+            else if (currentLevel === 1 && obj.userData.type === 'nucleus') {
+                updateSliderAndLoad(2);
+            }
+            else if (currentLevel === 2 && (obj.userData.type === 'proton' || obj.userData.type === 'neutron')) {
+                selectedNucleonType = obj.userData.type;
+                updateSliderAndLoad(3);
+            }
+        }
+    }
+}
+
+function updateSliderAndLoad(level) {
+    document.getElementById('level-slider').value = level;
+    loadLevel(level);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    
+    // 执行当前层级特定的动画函数
+    activeAnimators.forEach(fn => fn());
+
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

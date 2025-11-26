@@ -1,0 +1,226 @@
+{
+    "H2O": {
+        "id": "H2O",
+        "name": "水",
+        "formula": "H₂O",
+        "color": "#3b82f6",
+        "type": "liquid",
+        "description": "通用溶剂，生命必需"
+    },
+    "CaO": {
+        "id": "CaO",
+        "name": "生石灰",
+        "formula": "CaO",
+        "color": "#e5e7eb",
+        "type": "solid",
+        "description": "腐蚀性白色固体，与水反应剧烈"
+    },
+    "Ca(OH)2": {
+        "id": "Ca(OH)2",
+        "name": "熟石灰",
+        "formula": "Ca(OH)₂",
+        "color": "#f3f4f6",
+        "type": "powder",
+        "description": "白色粉末，生石灰与水混合的产物"
+    },
+    "C": {
+        "id": "C",
+        "name": "木炭",
+        "formula": "C",
+        "color": "#1f2937",
+        "type": "solid",
+        "description": "黑色碳残留物，可燃"
+    },
+    "O2": {
+        "id": "O2",
+        "name": "氧气",
+        "formula": "O₂",
+        "color": "transparent",
+        "type": "gas",
+        "description": "无色气体，燃烧必需"
+    },
+    "CO2": {
+        "id": "CO2",
+        "name": "二氧化碳",
+        "formula": "CO₂",
+        "color": "transparent",
+        "type": "gas",
+        "description": "无色气体，燃烧产物"
+    },
+    "Ash": {
+        "id": "Ash",
+        "name": "灰烬",
+        "formula": "Ash",
+        "color": "#9ca3af",
+        "type": "powder",
+        "description": "燃烧后的残留物"
+    },
+    "CaCO3": {
+        "id": "CaCO3",
+        "name": "石灰石",
+        "formula": "CaCO₃",
+        "color": "#d1d5db",
+        "type": "solid",
+        "description": "沉积岩，加热可生成生石灰"
+    },
+    "Au": {
+        "id": "Au",
+        "name": "金",
+        "formula": "Au",
+        "color": "#FFD700",
+        "type": "solid",
+        "description": "一种贵金属，化学性质稳定"
+    },
+    "Ag": {
+        "id": "Ag",
+        "name": "银",
+        "formula": "Ag",
+        "color": "#C0C0C0",
+        "type": "solid",
+        "description": "一种贵金属，导电性极好"
+    },
+    "H2SO4": {
+        "id": "H2SO4",
+        "name": "硫酸",
+        "formula": "H₂SO₄",
+        "color": "#dbeafe",
+        "type": "liquid",
+        "description": "强酸，具有强腐蚀性和脱水性"
+    },
+    "HCl": {
+        "id": "HCl",
+        "name": "盐酸",
+        "formula": "HCl",
+        "color": "#e0f2fe",
+        "type": "liquid",
+        "description": "氯化氢的水溶液，强酸，有刺激性气味"
+    },
+    "CH3COOH": {
+        "id": "CH3COOH",
+        "name": "醋酸",
+        "formula": "CH₃COOH",
+        "color": "#f0f9ff",
+        "type": "liquid",
+        "description": "弱酸，有刺激性酸味"
+    },
+    "NaCl": {
+        "id": "NaCl",
+        "name": "食盐",
+        "formula": "NaCl",
+        "color": "#ffffff",
+        "type": "solid",
+        "description": "氯化钠，日常调味品"
+    },
+    "CuSO4": {
+        "id": "CuSO4",
+        "name": "硫酸铜",
+        "formula": "CuSO₄",
+        "color": "#60a5fa",
+        "type": "solid",
+        "description": "蓝色晶体，常用于化学实验"
+    },
+    "Fe": {
+        "id": "Fe",
+        "name": "铁",
+        "formula": "Fe",
+        "color": "#71717a",
+        "type": "solid",
+        "description": "常见金属，易生锈"
+    },
+    "Cu": {
+        "id": "Cu",
+        "name": "铜",
+        "formula": "Cu",
+        "color": "#F4A460",
+        "type": "solid",
+        "description": "紫红色金属，导电性好"
+    },
+    "Zn": {
+        "id": "Zn",
+        "name": "锌",
+        "formula": "Zn",
+        "color": "#a8a29e",
+        "type": "solid",
+        "description": "银白色金属，可与酸反应放出氢气"
+    },
+    "NaOH": {
+        "id": "NaOH",
+        "name": "氢氧化钠",
+        "formula": "NaOH",
+        "color": "#fafafa",
+        "type": "solid",
+        "description": "强碱，具有强腐蚀性，易吸水潮解"
+    },
+    "H2": {
+        "id": "H2",
+        "name": "氢气",
+        "formula": "H₂",
+        "color": "transparent",
+        "type": "gas",
+        "description": "无色气体，可燃，密度最小"
+    },
+    "Cl2": {
+        "id": "Cl2",
+        "name": "氯气",
+        "formula": "Cl₂",
+        "color": "#bef264",
+        "type": "gas",
+        "description": "黄绿色气体，有毒，有刺激性气味"
+    },
+    "NH3": {
+        "id": "NH3",
+        "name": "氨气",
+        "formula": "NH₃",
+        "color": "transparent",
+        "type": "gas",
+        "description": "无色气体，有刺激性气味，易溶于水"
+    },
+    "MnO2": {
+        "id": "MnO2",
+        "name": "二氧化锰",
+        "formula": "MnO₂",
+        "color": "#52525b",
+        "type": "powder",
+        "description": "黑色粉末，常用作催化剂"
+    },
+    "KClO3": {
+        "id": "KClO3",
+        "name": "氯酸钾",
+        "formula": "KClO₃",
+        "color": "#fafafa",
+        "type": "solid",
+        "description": "白色晶体，受热分解放出氧气"
+    },
+    "CH4": {
+        "id": "CH4",
+        "name": "甲烷",
+        "formula": "CH₄",
+        "color": "transparent",
+        "type": "gas",
+        "description": "无色气体，可燃，天然气主要成分"
+    },
+    "C2H5OH": {
+        "id": "C2H5OH",
+        "name": "乙醇",
+        "formula": "C₂H₅OH",
+        "color": "#f0f9ff",
+        "type": "liquid",
+        "description": "酒精，无色液体，可燃"
+    },
+    "HNO3": {
+        "id": "HNO3",
+        "name": "硝酸",
+        "formula": "HNO₃",
+        "color": "#f0f9ff",
+        "type": "liquid",
+        "description": "强酸，强氧化性，腐蚀性"
+    },
+    "C6H8O7": {
+        "id": "C6H8O7",
+        "name": "柠檬酸",
+        "formula": "C₆H₈O₇",
+        "color": "#ffffff",
+        "type": "solid",
+        "description": "有机酸，常见于柠檬等水果中"
+    }
+}
